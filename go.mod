@@ -4,14 +4,15 @@ go 1.20
 
 require (
 	github.com/brianvoe/gofakeit/v6 v6.22.0
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/fatih/color v1.15.0
 	github.com/gavv/httpexpect/v2 v2.15.0
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-chi/render v1.0.2
 	github.com/go-playground/validator/v10 v10.14.1
 	github.com/ilyakaznacheev/cleanenv v1.4.2
-	github.com/mattn/go-sqlite3 v1.14.17
-	github.com/stretchr/testify v1.8.2
+	github.com/lib/pq v1.10.9
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 )
 
@@ -38,7 +39,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sanity-io/litter v1.5.5 // indirect
 	github.com/sergi/go-diff v1.0.0 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.34.0 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect

@@ -1,3 +1,5 @@
+// internal/lib/api/response/response.go
+
 package response
 
 import (

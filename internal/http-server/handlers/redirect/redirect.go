@@ -1,3 +1,5 @@
+// internal/http-server/handlers/redirect/redirect.go
+
 package redirect
 
 import (

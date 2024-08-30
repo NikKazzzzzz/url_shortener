@@ -1,3 +1,5 @@
+// internal/lib/api/api.go
+
 package api
 
 import (

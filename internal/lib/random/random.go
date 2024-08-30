@@ -1,3 +1,5 @@
+// internal/lib/random/random.go
+
 package random
 
 import (
