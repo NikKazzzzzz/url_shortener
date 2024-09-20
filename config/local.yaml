@@ -9,3 +9,4 @@ http_server:
   shutdown_timeout: 10s
 auth:
   secret_key: "shortener"
+  sso_url: "http://localhost:44044"

@@ -29,6 +29,7 @@ type HTTPServer struct {
 
 type Auth struct {
 	SecretKey string `yaml:"secret_key" env-required:"true"`
+	SSOURL    string `yaml:"sso_url" env-required:"true"`
 }
 
 func MustLoad() *Config {

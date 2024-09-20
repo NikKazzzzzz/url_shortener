@@ -52,7 +52,7 @@ func main() {
 		}
 	}()
 
-	authenticator := auth.NewAuthenticator(cfg.Auth.SecretKey, log, storage)
+	authenticator := auth.NewAuthenticator(cfg.Auth.SecretKey, log, storage, cfg.Auth.SSOURL)
 
 	router := chi.NewRouter()
 

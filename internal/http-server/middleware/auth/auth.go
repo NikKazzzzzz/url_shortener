@@ -3,9 +3,11 @@
 package auth
 
 import (
+	"encoding/json"
 	"errors"
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/exp/slog"
+	"io"
 	"net/http"
 	"strings"
 	"url-shortener/internal/lib/logger/sl"
@@ -26,13 +28,15 @@ type Authenticator struct {
 	SecretKey string
 	Logger    *slog.Logger
 	Storage   *postgres.Storage
+	SSOURL    string
 }
 
-func NewAuthenticator(secretKey string, logger *slog.Logger, storage *postgres.Storage) *Authenticator {
+func NewAuthenticator(secretKey string, logger *slog.Logger, storage *postgres.Storage, ssoURL string) *Authenticator {
 	return &Authenticator{
 		SecretKey: secretKey,
 		Logger:    logger,
 		Storage:   storage,
+		SSOURL:    ssoURL,
 	}
 }
 
@@ -43,27 +47,27 @@ func (a *Authenticator) Middleware(next http.Handler) http.Handler {
 			tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, Bearer+" "))
 
 			// Проверяем валидность токена с использованием Storage
-			isValid, err := a.Storage.IsTokenValid(tokenString)
+			_, err := a.Storage.IsTokenValid(tokenString)
 			if err != nil {
-				if errors.Is(err, storage.ErrTokenNotFound) {
-					a.Logger.Error("token not found", sl.Err(err))
-					http.Error(w, "Token not found: The token you provided was not found", http.StatusUnauthorized)
-					return
-				}
 				if errors.Is(err, storage.ErrTokenExpired) {
-					a.Logger.Error("token is expired", sl.Err(err))
-					http.Error(w, "Token expired: The token you provided has expired", http.StatusForbidden)
+					a.Logger.Warn("token is expired, attempting to refresh", sl.Err(err))
+
+					// Попытка обновить токен через SSO
+					newToken, refreshErr := a.refreshToken(tokenString)
+					if refreshErr != nil {
+						a.Logger.Error("failed to refresh token", sl.Err(refreshErr))
+						http.Error(w, "Token expired and could not be refreshed", http.StatusForbidden)
+						return
+					}
+
+					// Обновляем заголовок с новым токеном и продолжаем выполнение запроса
+					r.Header.Set(AuthHeader, Bearer+" "+newToken)
+					tokenString = newToken // Обновляем локальную переменную для дальнейшей проверки
+				} else {
+					a.Logger.Error("error validating token", sl.Err(err))
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 					return
 				}
-				a.Logger.Error("error validation token", sl.Err(err))
-				http.Error(w, "Internal Server Error: An error occurred while validating the token", http.StatusInternalServerError)
-				return
-			}
-
-			if !isValid {
-				a.Logger.Error("token validation failed", sl.Err(ErrInvalidToken))
-				http.Error(w, "Token is invalid: The token you provided is not valid", http.StatusUnauthorized)
-				return
 			}
 
 			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -75,7 +79,6 @@ func (a *Authenticator) Middleware(next http.Handler) http.Handler {
 				return []byte(a.SecretKey), nil
 			})
 			if err != nil {
-				// Логируем ошибку разбора токена
 				a.Logger.Error("token parsing failed", sl.Err(err))
 				http.Error(w, "Unauthorized: The token could not be parsed", http.StatusUnauthorized)
 				return
@@ -84,7 +87,7 @@ func (a *Authenticator) Middleware(next http.Handler) http.Handler {
 			// Если токен валиден, выполняем следующий обработчик
 			if !token.Valid {
 				a.Logger.Error("token not valid", sl.Err(ErrInvalidToken))
-				http.Error(w, "Token not valid: The token you provided is not valid", http.StatusUnauthorized)
+				http.Error(w, "Unauthorized: The token is not valid", http.StatusUnauthorized)
 				return
 			}
 		} else {
@@ -95,4 +98,41 @@ func (a *Authenticator) Middleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (a *Authenticator) refreshToken(oldToken string) (string, error) {
+	request, err := http.NewRequest("POST", a.SSOURL+"/refresh", nil)
+	if err != nil {
+		return "", err
+	}
+
+	request.Header.Set(AuthHeader, Bearer+" "+oldToken)
+
+	client := &http.Client{}
+	response, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return "", errors.New("failed to refresh token")
+	}
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var jsonResponse map[string]string
+	if err = json.Unmarshal(body, &jsonResponse); err != nil {
+		return "", err
+	}
+
+	newToken, exists := jsonResponse["token"]
+	if !exists {
+		return "", errors.New("token not found in response")
+	}
+
+	return newToken, nil
 }
